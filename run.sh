@@ -108,15 +108,15 @@ for PROXY in "${PROXIES[@]}"; do
             NEW_PROXY="https://$IP:$PORT"
         fi
         export $PROXY="$NEW_PROXY"
-        DOCKER_PROXY=$(systemctl show --property=Environment docker | grep -o "$PROXY=[^ ]*")
-        DESIRED_DOCKER_PROXY="Environment=\"$PROXY=$NEW_PROXY\""
+        DOCKER_PROXY=$(systemctl show --property=Environment docker | grep -o "$PROXY=[^ ]*" | cut -d '=' -f 2-)
+        DESIRED_DOCKER_PROXY="$NEW_PROXY"
         if [ "$DOCKER_PROXY" != "$DESIRED_DOCKER_PROXY" ]; then
             sudo mkdir -p /etc/systemd/system/docker.service.d
             if [ ! -f /etc/systemd/system/docker.service.d/http-proxy.conf ]; then
                 echo "[Service]" | sudo tee /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
             fi
             sudo sed -i "/$PROXY=/d" /etc/systemd/system/docker.service.d/http-proxy.conf
-            echo "$DESIRED_DOCKER_PROXY" | sudo tee -a /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
+            echo "Environment=\"$PROXY=$NEW_PROXY\"" | sudo tee -a /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
             sudo systemctl daemon-reload && sudo systemctl restart docker
         fi
     fi
