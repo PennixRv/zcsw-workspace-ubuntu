@@ -1,25 +1,20 @@
 #!/bin/bash
 
-# 确保传入 VS Code Commit ID
 if [ -z "$CODE_COMMITID" ]; then
     echo "Error: VS Code commit ID is not provided."
     exit 1
 fi
 
-# 更新软件包和安装 OpenSSH 服务器
 apt-get update
 apt-get install -y openssh-server
 
-# 启动 SSH 服务并设置开机自启
 systemctl enable --now ssh
 
-# 循环检查 SSH 服务是否已经启动
 while ! systemctl is-active --quiet ssh; do
     echo "Waiting for SSH service to start..."
     sleep 1
 done
 
-# 设置 SSH 以允许密码认证
 sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 systemctl restart ssh
 

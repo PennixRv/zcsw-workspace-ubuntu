@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# 默认值设置
 WITH_GCC="true"
 WITH_LLVM="true"
 DISABLE_SNAP="true"
@@ -10,16 +9,14 @@ WITH_RUST="true"
 WITH_GO="true"
 WITH_ASTRONVIM="true"
 WITH_VSCODE="true"
-GH_TOKEN=""          # 新增
-CODE_COMMITID=""     # 新增
+GH_TOKEN=""
+CODE_COMMITID=""
 
-# 检查命令行参数
 if [ "$#" -lt 1 ]; then
     echo "Usage: $0 --mount-path <path-to-mount> [options]"
     exit 1
 fi
 
-# 解析命令行参数
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
         --mount-path)
@@ -35,15 +32,15 @@ while [[ "$#" -gt 0 ]]; do
             shift 2
             ;;
         --disable-snap)
-            DISABLE_SNAP="$2" # 正确处理 disable-snap 参数
+            DISABLE_SNAP="$2"
             shift 2
             ;;
         --gh-token)
-            GH_TOKEN="$2"  # 解析 GitHub Token 参数
+            GH_TOKEN="$2"
             shift 2
             ;;
         --code-commitid)
-            CODE_COMMITID="$2"  # 解析 VSCode Commit ID 参数
+            CODE_COMMITID="$2"
             shift 2
             ;;
         *)
@@ -53,13 +50,11 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
-# 检查挂载路径是否提供
 if [ -z "${MOUNT_PATH}" ]; then
     echo "Error: Mount path must be specified with --mount-path"
     exit 1
 fi
 
-# 检查 GitHub 配置及 VSCode 安装的必需参数
 if [ "$CONFIG_GITHUB" = "true" ] && [ -z "$GH_TOKEN" ]; then
     echo "Error: GitHub token must be specified with --gh-token when GitHub configuration is enabled"
     exit 1
@@ -70,8 +65,6 @@ if [ "$WITH_VSCODE" = "true" ] && [ -z "$CODE_COMMITID" ]; then
     exit 1
 fi
 
-
-# 检查 Docker 服务状态
 if ! systemctl is-active --quiet docker; then
     echo "Docker service is not running."
     read -p "Do you want to install and start Docker? (y/N) " response
@@ -95,7 +88,6 @@ if ! systemctl is-active --quiet docker; then
     fi
 fi
 
-# 获取系统的外部 IP 地址
 IP=$(hostname -I | awk '{print $1}')
 export USER_ID=$(id -u)
 export GROUP_ID=$(id -g)
@@ -105,7 +97,6 @@ export HOME_DIR=$HOME
 export HTTP_PROXY=${HTTP_PROXY}
 export HTTPS_PROXY=${HTTPS_PROXY}
 
-# 设置代理环境变量
 PROXIES=("HTTP_PROXY" "HTTPS_PROXY")
 for PROXY in "${PROXIES[@]}"; do
     eval VALUE=\$$PROXY
@@ -117,18 +108,13 @@ for PROXY in "${PROXIES[@]}"; do
             NEW_PROXY="https://$IP:$PORT"
         fi
         export $PROXY="$NEW_PROXY"
-
-        # 检查 Docker 环境变量，并在必要时更新
         DOCKER_PROXY=$(systemctl show --property=Environment docker | grep -o "$PROXY=[^ ]*")
         DESIRED_DOCKER_PROXY="Environment=\"$PROXY=$NEW_PROXY\""
         if [ "$DOCKER_PROXY" != "$DESIRED_DOCKER_PROXY" ]; then
-            # 确保代理设置文件存在
             sudo mkdir -p /etc/systemd/system/docker.service.d
-            # 更新或创建代理设置文件
             if [ ! -f /etc/systemd/system/docker.service.d/http-proxy.conf ]; then
                 echo "[Service]" | sudo tee /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
             fi
-            # 删除旧的环境变量设置，确保只有一个最新的设置
             sudo sed -i "/$PROXY=/d" /etc/systemd/system/docker.service.d/http-proxy.conf
             echo "$DESIRED_DOCKER_PROXY" | sudo tee -a /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
             sudo systemctl daemon-reload && sudo systemctl restart docker
@@ -136,7 +122,6 @@ for PROXY in "${PROXIES[@]}"; do
     fi
 done
 
-# 创建或更新环境变量文件
 cat > .env <<EOF
 USER_ID=$(id -u)
 GROUP_ID=$(id -g)
@@ -159,5 +144,4 @@ GH_TOKEN=$GH_TOKEN
 CODE_COMMITID=$CODE_COMMITID
 EOF
 
-# 使用 Docker Compose 启动服务
 docker-compose up -d --build
