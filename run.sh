@@ -10,6 +10,8 @@ WITH_RUST="true"
 WITH_GO="true"
 WITH_ASTRONVIM="true"
 WITH_VSCODE="true"
+GH_TOKEN=""          # 新增
+CODE_COMMITID=""     # 新增
 
 # 检查命令行参数
 if [ "$#" -lt 1 ]; then
@@ -24,40 +26,24 @@ while [[ "$#" -gt 0 ]]; do
             MOUNT_PATH=$(realpath "$2")
             shift 2
             ;;
-        --with-gcc)
-            WITH_GCC="$2"
-            shift 2
-            ;;
-        --with-llvm)
-            WITH_LLVM="$2"
-            shift 2
-            ;;
-        --disable-snap)
-            DISABLE_SNAP="$2"
-            shift 2
-            ;;
-        --with-zsh)
-            WITH_ZSH="$2"
+        --with-gcc|--with-llvm|--with-zsh|--with-rust|--with-go|--with-astronvim|--with-vscode)
+            declare "WITH_${1#--with-}"="$2"
             shift 2
             ;;
         --config-github)
             CONFIG_GITHUB="$2"
             shift 2
             ;;
-        --with-rust)
-            WITH_RUST="$2"
+        --disable-snap)
+            DISABLE_SNAP="$2" # 正确处理 disable-snap 参数
             shift 2
             ;;
-        --with-go)
-            WITH_GO="$2"
+        --gh-token)
+            GH_TOKEN="$2"  # 解析 GitHub Token 参数
             shift 2
             ;;
-        --with-astronvim)
-            WITH_ASTRONVIM="$2"
-            shift 2
-            ;;
-        --with-vscode)
-            WITH_VSCODE="$2"
+        --code-commitid)
+            CODE_COMMITID="$2"  # 解析 VSCode Commit ID 参数
             shift 2
             ;;
         *)
@@ -72,6 +58,18 @@ if [ -z "${MOUNT_PATH}" ]; then
     echo "Error: Mount path must be specified with --mount-path"
     exit 1
 fi
+
+# 检查 GitHub 配置及 VSCode 安装的必需参数
+if [ "$CONFIG_GITHUB" = "true" ] && [ -z "$GH_TOKEN" ]; then
+    echo "Error: GitHub token must be specified with --gh-token when GitHub configuration is enabled"
+    exit 1
+fi
+
+if [ "$WITH_VSCODE" = "true" ] && [ -z "$CODE_COMMITID" ]; then
+    echo "Error: VSCode commit ID must be specified with --code-commitid when VSCode installation is enabled"
+    exit 1
+fi
+
 
 # 检查 Docker 服务状态
 if ! systemctl is-active --quiet docker; then
@@ -122,26 +120,28 @@ for PROXY in "${PROXIES[@]}"; do
 
         # 检查 Docker 环境变量，并在必要时更新
         DOCKER_PROXY=$(systemctl show --property=Environment docker | grep -o "$PROXY=[^ ]*")
-        if [ "$DOCKER_PROXY" != "Environment=$PROXY=$NEW_PROXY" ]; then
+        DESIRED_DOCKER_PROXY="Environment=\"$PROXY=$NEW_PROXY\""
+        if [ "$DOCKER_PROXY" != "$DESIRED_DOCKER_PROXY" ]; then
             # 确保代理设置文件存在
             sudo mkdir -p /etc/systemd/system/docker.service.d
             # 更新或创建代理设置文件
             if [ ! -f /etc/systemd/system/docker.service.d/http-proxy.conf ]; then
                 echo "[Service]" | sudo tee /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
             fi
-            echo "Environment=\"$PROXY=$NEW_PROXY\"" | sudo tee -a /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
+            # 删除旧的环境变量设置，确保只有一个最新的设置
+            sudo sed -i "/$PROXY=/d" /etc/systemd/system/docker.service.d/http-proxy.conf
+            echo "$DESIRED_DOCKER_PROXY" | sudo tee -a /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
             sudo systemctl daemon-reload && sudo systemctl restart docker
         fi
     fi
 done
 
-
 # 创建或更新环境变量文件
 cat > .env <<EOF
-USER_ID=$USER_ID
-GROUP_ID=$GROUP_ID
-USER_NAME=$USER_NAME
-GROUP_NAME=$GROUP_NAME
+USER_ID=$(id -u)
+GROUP_ID=$(id -g)
+USER_NAME=$(id -un)
+GROUP_NAME=$(id -gn)
 HOME_DIR=$HOME
 MOUNT_PATH=$MOUNT_PATH
 HTTP_PROXY=${HTTP_PROXY}
@@ -155,6 +155,8 @@ WITH_RUST=$WITH_RUST
 WITH_GO=$WITH_GO
 WITH_ASTRONVIM=$WITH_ASTRONVIM
 WITH_VSCODE=$WITH_VSCODE
+GH_TOKEN=$GH_TOKEN
+CODE_COMMITID=$CODE_COMMITID
 EOF
 
 # 使用 Docker Compose 启动服务

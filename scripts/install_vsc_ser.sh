@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# 确保传入 VS Code Commit ID
+if [ -z "$CODE_COMMITID" ]; then
+    echo "Error: VS Code commit ID is not provided."
+    exit 1
+fi
+
 # 更新软件包和安装 OpenSSH 服务器
 apt-get update
 apt-get install -y openssh-server
@@ -17,18 +23,12 @@ done
 sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 systemctl restart ssh
 
-# 安装 VS Code Server
-curl -fsSL https://update.code.visualstudio.com/latest/server-linux-x64/stable -o /tmp/vscode-server-linux-x64.tar.gz
-mkdir -p "$HOME/.vscode-server"
-tar -xzf /tmp/vscode-server-linux-x64.tar.gz -C "$HOME/.vscode-server" --strip-components=1
-rm /tmp/vscode-server-linux-x64.tar.gz
-
-# 设置 VS Code Server 文件夹权限
-chown -R "$USER:$USER" "$HOME/.vscode-server"
-
-# 安装扩展示例（可选）
-# 使用官方 cli 安装 extensions，假设 VS Code Server 的二进制文件在 $HOME/.vscode-server/bin/ 中
-VSCODE_BIN_PATH="$HOME/.vscode-server/bin/$(ls $HOME/.vscode-server/bin/)"
-su - $USER -c "$VSCODE_BIN_PATH --install-extension ms-python.python"
-
-echo "VS Code Server and SSH are set up."
+VSCODE_SERVER_URL="https://vscode.download.prss.microsoft.com/dbazure/download/stable/${CODE_COMMITID}/vscode-server-linux-x64.tar.gz"
+mkdir -p "$HOME/.vscode-server/bin/$CODE_COMMITID"
+rm -rf "$HOME/.vscode-server/bin/$CODE_COMMITID/*"
+echo "Downloading VS Code Server..."
+curl -L "$VSCODE_SERVER_URL" -o "$HOME/.vscode-server/bin/$CODE_COMMITID/vscode-server-linux-x64.tar.gz"
+cd "$HOME/.vscode-server/bin/$CODE_COMMITID"
+echo "Installing VS Code Server..."
+tar -xvzf vscode-server-linux-x64.tar.gz --strip-components=1
+rm vscode-server-linux-x64.tar.gz

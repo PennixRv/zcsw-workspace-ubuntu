@@ -9,22 +9,28 @@ services:
         WITH_RUST: ${WITH_RUST}
         WITH_GO: ${WITH_GO}
         DISABLE_SNAP: ${DISABLE_SNAP}
+        WITH_ZSH: ${WITH_ZSH}
+        CONFIG_GITHUB: ${CONFIG_GITHUB}
+        WITH_ASTRONVIM: ${WITH_ASTRONVIM}
+        WITH_VSCODE: ${WITH_VSCODE}
+        USER_ID: ${USER_ID}
+        GROUP_ID: ${GROUP_ID}
+        USER_NAME: ${USER_NAME}
+        GROUP_NAME: ${GROUP_NAME}
+        HOME_DIR: ${HOME_DIR}
+        MOUNT_PATH: ${MOUNT_PATH}
+        GH_TOKEN: ${GH_TOKEN}
+        CODE_COMMITID: ${CODE_COMMITID}
+        HTTP_PROXY: ${HTTP_PROXY}
+        HTTPS_PROXY: ${HTTPS_PROXY}
     image: zcsw-workspace-ubuntu
     container_name: zcsw-workspace-ubuntu-container
     ports:
-      - "2222:22"  # 映射宿主机的 2222 端口到容器的 22 端口
+      - "2222:22"
     network_mode: bridge
     volumes:
       - ${MOUNT_PATH}:${MOUNT_PATH}
     environment:
-      - USER_ID=${USER_ID}
-      - GROUP_ID=${GROUP_ID}
-      - USER_NAME=${USER_NAME}
-      - GROUP_NAME=${GROUP_NAME}
-      - HOME_DIR=${HOME_DIR}
-      - MOUNT_PATH=${MOUNT_PATH}
-      - WITH_ZSH=${WITH_ZSH}
-      - CONFIG_GITHUB=${CONFIG_GITHUB}
-      - WITH_ASTRONVIM=${WITH_ASTRONVIM}
-      - WITH_VSCODE=${WITH_VSCODE}
+      - HTTP_PROXY=${HTTP_PROXY}
+      - HTTPS_PROXY=${HTTPS_PROXY}
     user: "${USER_ID}:${GROUP_ID}"

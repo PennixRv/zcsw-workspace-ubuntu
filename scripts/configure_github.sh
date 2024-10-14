@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# 确保传入 GitHub Token
+if [ -z "$GH_TOKEN" ]; then
+    echo "Error: GitHub token is not provided."
+    exit 1
+fi
+
 git config --global user.name "penn"
 git config --global user.email "pennaliflake@gmail.com"
 git config --global core.editor "vim"
@@ -17,7 +23,7 @@ eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/github_access
 
 # 使用GitHub CLI登录
-echo "" | gh auth login --with-token
+echo "$GH_TOKEN" | gh auth login --with-token
 
 # 将SSH公钥添加到GitHub账户
 gh ssh-key add ~/.ssh/github_access.pub -t "GitHub Access Key"
