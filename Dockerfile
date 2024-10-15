@@ -9,9 +9,15 @@ ENV https_proxy=$HTTPS_PROXY
 RUN echo 'Acquire::http::Proxy "$http_proxy";' >> /etc/apt/apt.conf.d/proxy.conf \
     && echo 'Acquire::https::Proxy "$https_proxy";' >> /etc/apt/apt.conf.d/proxy.conf
 
-RUN sed -i 's@//.*archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list && \
-    apt-get update && apt-get upgrade -y && apt-get install -y \
-    apt-transport-https ca-certificates curl gnupg lsb-release sudo wget
+RUN cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.bak && \
+    echo "Types: deb" > /etc/apt/sources.list.d/ubuntu.sources && \
+    echo "URIs: http://mirrors.tuna.tsinghua.edu.cn/ubuntu/" >> /etc/apt/sources.list.d/ubuntu.sources && \
+    echo "Suites: noble noble-updates noble-security" >> /etc/apt/sources.list.d/ubuntu.sources && \
+    echo "Components: main restricted universe multiverse" >> /etc/apt/sources.list.d/ubuntu.sources && \
+    echo "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg" >> /etc/apt/sources.list.d/ubuntu.sources && \
+    apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release sudo wget
 
 RUN apt-get install -y \
     adb bc bear bison build-essential bzip2 ccache cmake curl device-tree-compiler exfat-fuse \
@@ -52,15 +58,15 @@ ARG WITH_ASTRONVIM
 ARG WITH_VSCODE
 ARG GH_TOKEN
 ARG CODE_COMMITID
-RUN if [ "$WITH_GCC" = "true" ]; then /usr/local/bin/pre_configured_scripts/install_gcc.sh; fi
-RUN if [ "$WITH_LLVM" = "true" ]; then /usr/local/bin/pre_configured_scripts/install_llvm.sh; fi
-RUN if [ "$DISABLE_SNAP" = "true" ]; then /usr/local/bin/pre_configured_scripts/disable_snap.sh; fi
-RUN if [ "$WITH_RUST" = "true" ]; then /usr/local/bin/pre_configured_scripts/install_rust.sh; fi
-RUN if [ "$WITH_GO" = "true" ]; then /usr/local/bin/pre_configured_scripts/install_go.sh; fi
-RUN if [ "$WITH_ZSH" = "true" ]; then /usr/local/bin/pre_configured_scripts/install_zsh.sh; fi
-RUN if [ "$CONFIG_GITHUB" = "true" ]; then /usr/local/bin/pre_configured_scripts/configure_github.sh $GH_TOKEN; fi
-RUN if [ "$WITH_ASTRONVIM" = "true" ]; then /usr/local/bin/pre_configured_scripts/install_astronvim.sh; fi
-RUN if [ "$WITH_VSCODE" = "true" ]; then /usr/local/bin/pre_configured_scripts/install_vsc_ser.sh $CODE_COMMITID; fi
+RUN if [ "$WITH_LLVM" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_llvm.sh; fi
+RUN if [ "$WITH_GCC" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_gcc.sh; fi
+RUN if [ "$DISABLE_SNAP" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/disable_snap.sh; fi
+RUN if [ "$WITH_RUST" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_rust.sh; fi
+RUN if [ "$WITH_GO" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_go.sh; fi
+RUN if [ "$WITH_ZSH" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_zsh.sh; fi
+RUN if [ "$CONFIG_GITHUB" = "true" ]; /bin/bash then /usr/local/bin/pre_configured_scripts/configure_github.sh $GH_TOKEN; fi
+RUN if [ "$WITH_ASTRONVIM" = "true" ]; /bin/bash then /usr/local/bin/pre_configured_scripts/install_astronvim.sh; fi
+RUN if [ "$WITH_VSCODE" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_vsc_ser.sh $CODE_COMMITID; fi
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
