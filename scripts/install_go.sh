@@ -2,6 +2,8 @@
 
 GO_VERSION="1.23.2"
 
+cd /tmp
+
 wget https://golang.google.cn/dl/go$GO_VERSION.linux-amd64.tar.gz
 
 tar -xvf go$GO_VERSION.linux-amd64.tar.gz
