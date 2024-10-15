@@ -11,6 +11,8 @@ WITH_ASTRONVIM="true"
 WITH_VSCODE="true"
 GH_TOKEN=""
 CODE_COMMITID=""
+PROXY_ENABLED="false"
+PROXY_CONTENT=""
 
 if [ "$#" -lt 1 ]; then
     echo "Usage: $0 --mount-path <path-to-mount> [options]"
@@ -41,6 +43,14 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         --code-commitid)
             CODE_COMMITID="$2"
+            shift 2
+            ;;
+        --proxy-enabled)
+            PROXY_ENABLED="$2"
+            shift 2
+            ;;
+        --proxy-content)
+            PROXY_CONTENT="$2"
             shift 2
             ;;
         *)
@@ -90,39 +100,81 @@ if ! systemctl is-active --quiet docker; then
     fi
 fi
 
-IP=$(hostname -I | awk '{print $1}')
-export USER_ID=$(id -u)
-export GROUP_ID=$(id -g)
-export USER_NAME=$(id -un)
-export GROUP_NAME=$(id -gn)
-export HOME_DIR=$HOME
-export HTTP_PROXY=${HTTP_PROXY}
-export HTTPS_PROXY=${HTTPS_PROXY}
-
-PROXIES=("HTTP_PROXY" "HTTPS_PROXY")
-for PROXY in "${PROXIES[@]}"; do
-    eval VALUE=\$$PROXY
-    if [[ "$VALUE" =~ ^(http|https):\/\/127\.0\.0\.1:([0-9]+)$ ]]; then
-        PORT="${BASH_REMATCH[2]}"
-        if [[ "$VALUE" =~ ^http:// ]]; then
-            NEW_PROXY="http://$IP:$PORT"
-        else
-            NEW_PROXY="https://$IP:$PORT"
-        fi
-        export $PROXY="$NEW_PROXY"
-        DOCKER_PROXY=$(systemctl show --property=Environment docker | grep -o "$PROXY=[^ ]*" | cut -d '=' -f 2-)
-        DESIRED_DOCKER_PROXY="$NEW_PROXY"
-        if [ "$DOCKER_PROXY" != "$DESIRED_DOCKER_PROXY" ]; then
-            sudo mkdir -p /etc/systemd/system/docker.service.d
-            if [ ! -f /etc/systemd/system/docker.service.d/http-proxy.conf ]; then
-                echo "[Service]" | sudo tee /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
-            fi
-            sudo sed -i "/$PROXY=/d" /etc/systemd/system/docker.service.d/http-proxy.conf
-            echo "Environment=\"$PROXY=$NEW_PROXY\"" | sudo tee -a /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
-            sudo systemctl daemon-reload && sudo systemctl restart docker
-        fi
+if [[ -z "$PROXY_ENABLED" ]]; then
+    read -p "Do you want to enable proxy settings (y/N)? " response
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+        PROXY_ENABLED="true"
+        default_proxy=${HTTP_PROXY:-${http_proxy:-${HTTPS_PROXY:-${https_proxy}}}}
+        read -p "Enter proxy ip:port [$default_proxy]: " input_proxy
+        PROXY_CONTENT="${input_proxy:-$default_proxy}"
+    else
+        PROXY_ENABLED="false"
     fi
-done
+fi
+
+export HTTP_PROXY="${PROXY_CONTENT:-$HTTP_PROXY}"
+export HTTPS_PROXY="${PROXY_CONTENT:-$HTTPS_PROXY}"
+
+IP=$(hostname -I | awk '{print $1}')
+if [ "$PROXY_ENABLED" = "true" ]; then
+    PROXIES=("HTTP_PROXY" "HTTPS_PROXY")
+    for PROXY in "${PROXIES[@]}"; do
+        eval VALUE=\$$PROXY
+        if [[ "$VALUE" =~ ^(http|https):\/\/127\.0\.0\.1:([0-9]+)$ ]]; then
+            PORT="${BASH_REMATCH[2]}"
+            if [[ "$VALUE" =~ ^http:// ]]; then
+                NEW_PROXY="http://$IP:$PORT"
+            else
+                NEW_PROXY="https://$IP:$PORT"
+            fi
+            export $PROXY="$NEW_PROXY"
+            DOCKER_PROXY=$(systemctl show --property=Environment docker | grep -o "$PROXY=[^ ]*" | cut -d '=' -f 2-)
+            DESIRED_DOCKER_PROXY="$NEW_PROXY"
+            if [ "$DOCKER_PROXY" != "$DESIRED_DOCKER_PROXY" ]; then
+                if ! sudo -v; then
+                    echo "Error: Current user does not have sudo privileges."
+                    exit 1
+                fi
+                sudo mkdir -p /etc/systemd/system/docker.service.d
+                if [ ! -f /etc/systemd/system/docker.service.d/http-proxy.conf ]; then
+                    echo "[Service]" | sudo tee /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
+                fi
+                sudo sed -i "/$PROXY=/d" /etc/systemd/system/docker.service.d/http-proxy.conf
+                echo "Environment=\"$PROXY=$NEW_PROXY\"" | sudo tee -a /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
+            fi
+        fi
+    done
+fi
+
+# Check if the proxy configuration needs to be created or updated for Docker client
+if [ "$PROXY_ENABLED" = "true" ]; then
+    mkdir -p ~/.docker
+    if [ ! -f ~/.docker/config.json ]; then
+        echo '{
+            "proxies": {
+                "default": {
+                    "httpProxy": "'$HTTP_PROXY'",
+                    "httpsProxy": "'$HTTPS_PROXY'",
+                    "noProxy": "localhost,127.0.0.1,.example.com"
+                }
+            }
+        }' > ~/.docker/config.json
+        DOCKER_NEEDS_RESTART="true"
+    else
+        sed -i 's/"httpProxy": ".*"/"httpProxy": "'$HTTP_PROXY'"/' ~/.docker/config.json
+        sed -i 's/"httpsProxy": ".*"/"httpsProxy": "'$HTTPS_PROXY'"/' ~/.docker/config.json
+        DOCKER_NEEDS_RESTART="true"
+    fi
+fi
+
+if [ "$DOCKER_NEEDS_RESTART" = "true" ]; then
+    if ! sudo -v; then
+        echo "Error: Current user does not have sudo privileges."
+        exit 1
+    fi
+    sudo systemctl daemon-reload
+    sudo systemctl restart docker
+fi
 
 cat > .env <<EOF
 USER_ID=$(id -u)
@@ -144,6 +196,7 @@ WITH_ASTRONVIM=$WITH_ASTRONVIM
 WITH_VSCODE=$WITH_VSCODE
 GH_TOKEN=$GH_TOKEN
 CODE_COMMITID=$CODE_COMMITID
+PROXY_ENABLED=$PROXY_ENABLED
 EOF
 
 docker-compose up -d --build

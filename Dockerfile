@@ -1,13 +1,22 @@
 FROM ubuntu:latest
 ENV DEBIAN_FRONTEND=noninteractive
 
+ARG PROXY_ENABLED
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 ENV http_proxy=$HTTP_PROXY
 ENV https_proxy=$HTTPS_PROXY
 
-RUN echo 'Acquire::http::Proxy "$http_proxy";' >> /etc/apt/apt.conf.d/proxy.conf \
-    && echo 'Acquire::https::Proxy "$https_proxy";' >> /etc/apt/apt.conf.d/proxy.conf
+RUN if [ "$PROXY_ENABLED" = "true" ]; then \
+        echo "Setting up proxies"; \
+        echo "Acquire::http::Proxy \"$HTTP_PROXY\";" > /etc/apt/apt.conf.d/01proxy && \
+        echo "Acquire::https::Proxy \"$HTTPS_PROXY\";" >> /etc/apt/apt.conf.d/01proxy; \
+        export HTTP_PROXY="$HTTP_PROXY" && \
+        export HTTPS_PROXY="$HTTPS_PROXY"; \
+    else \
+        echo "Proxies not enabled"; \
+    fi
+
 
 RUN cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.bak && \
     echo "Types: deb" > /etc/apt/sources.list.d/ubuntu.sources && \
