@@ -20,4 +20,4 @@ ssh-add ~/.ssh/github_access
 
 echo "$GH_TOKEN" | gh auth login --with-token
 
-gh ssh-key add ~/.ssh/github_access.pub -t "GitHub Access Key"
+gh ssh-key add ~/.ssh/github_access.pub -t "GitHub Access Key for Ubuntu Inside Docker"
