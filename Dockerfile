@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM docker.1panel.dev/ubuntu:latest
 ENV DEBIAN_FRONTEND=noninteractive
 
 ARG PROXY_ENABLED
@@ -17,25 +17,26 @@ RUN if [ "$PROXY_ENABLED" = "true" ]; then \
         echo "Proxies not enabled"; \
     fi
 
-
-RUN cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.bak && \
-    echo "Types: deb" > /etc/apt/sources.list.d/ubuntu.sources && \
-    echo "URIs: http://mirrors.tuna.tsinghua.edu.cn/ubuntu/" >> /etc/apt/sources.list.d/ubuntu.sources && \
-    echo "Suites: noble noble-updates noble-security" >> /etc/apt/sources.list.d/ubuntu.sources && \
-    echo "Components: main restricted universe multiverse" >> /etc/apt/sources.list.d/ubuntu.sources && \
-    echo "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg" >> /etc/apt/sources.list.d/ubuntu.sources && \
+RUN if [ "$PROXY_ENABLED" != "true" ]; then \
+        cp /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources.bak && \
+        echo "Types: deb" > /etc/apt/sources.list.d/ubuntu.sources && \
+        echo "URIs: http://mirrors.tuna.tsinghua.edu.cn/ubuntu/" >> /etc/apt/sources.list.d/ubuntu.sources && \
+        echo "Suites: noble noble-updates noble-security" >> /etc/apt/sources.list.d/ubuntu.sources && \
+        echo "Components: main restricted universe multiverse" >> /etc/apt/sources.list.d/ubuntu.sources && \
+        echo "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg" >> /etc/apt/sources.list.d/ubuntu.sources; \
+    fi && \
     apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release sudo wget
 
 RUN apt-get install -y \
-    adb bc bear bison build-essential bzip2 ccache cmake curl device-tree-compiler exfat-fuse \
-    fastboot flex fuse g++ g++-aarch64-linux-gnu gcc gcc-aarch64-linux-gnu gdb-multiarch git htop \
-    iproute2 libbz2-dev libclang-cpp-dev libelf-dev libncurses-dev libreadline-dev libsqlite3-dev \
-    libssl-dev libyaml-cpp-dev locales lsof make net-tools openjdk-11-jdk openssh-server plantuml \
-    psmisc python3 qemu-kvm qemu-system qemu-utils rsync scons strace sysstat tar tzdata u-boot-tools \
-    unzip vim wget xz-utils zip zlib1g-dev && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    bear bison bzip2 ccache cmake curl \
+    device-tree-compiler flex fuse htop iproute2 \
+    libbz2-dev libelf-dev libncurses-dev libreadline-dev \
+    libsqlite3-dev libssl-dev libyaml-cpp-dev locales lsof \
+    make net-tools openssh-server plantuml psmisc python3 \
+    rsync scons strace sysstat tar tzdata u-boot-tools \
+    unzip vim wget xz-utils zip zlib1g-dev
 
 RUN mkdir -p /usr/local/bin/pre_configured_scripts
 COPY scripts/ /usr/local/bin/pre_configured_scripts/
@@ -70,9 +71,9 @@ ARG CODE_COMMITID
 RUN if [ "$WITH_LLVM" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_llvm.sh; fi
 RUN if [ "$WITH_GCC" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_gcc.sh; fi
 RUN if [ "$DISABLE_SNAP" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/disable_snap.sh; fi
+RUN if [ "$WITH_ZSH" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_zsh.sh; fi
 RUN if [ "$WITH_RUST" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_rust.sh; fi
 RUN if [ "$WITH_GO" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_go.sh; fi
-RUN if [ "$WITH_ZSH" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_zsh.sh; fi
 RUN if [ "$CONFIG_GITHUB" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/configure_github.sh; fi
 RUN if [ "$WITH_ASTRONVIM" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_astronvim.sh; fi
 RUN if [ "$WITH_VSCODE" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_vsc_ser.sh; fi

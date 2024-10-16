@@ -75,6 +75,48 @@ if [ "$WITH_VSCODE" = "true" ] && [ -z "$CODE_COMMITID" ]; then
     exit 1
 fi
 
+setup_deb822_sources() {
+    sudo tee /etc/apt/sources.list.d/ubuntu.sources > /dev/null <<EOT
+Types: deb
+URIs: https://mirrors.tuna.tsinghua.edu.cn/ubuntu
+Suites: noble noble-updates noble-backports
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+EOT
+    echo "Updated to DEB822 format sources."
+}
+
+setup_traditional_sources() {
+    sudo sed -i.bak -e 's|http://archive.ubuntu.com/ubuntu/|https://mirrors.tuna.tsinghua.edu.cn/ubuntu/|g' \
+                      -e 's|http://security.ubuntu.com/ubuntu/|https://mirrors.tuna.tsinghua.edu.cn/ubuntu/|g' /etc/apt/sources.list
+    echo "Updated to traditional format sources."
+}
+
+UBUNTU_VERSION=$(lsb_release -sr | grep -oP '\d+\.\d+' | head -n1)
+if [ "$PROXY_ENABLED" = "false" ]; then
+    read -p "Do you want to enable proxy settings (y/N)? " response
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+        PROXY_ENABLED="true"
+        default_proxy=${HTTP_PROXY:-${http_proxy:-${HTTPS_PROXY:-${https_proxy}}}}
+        read -p "Enter proxy ip:port [$default_proxy]: " input_proxy
+        PROXY_CONTENT="${input_proxy:-$default_proxy}"
+    else
+        PROXY_ENABLED="false"
+        unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy
+        read -p "Do you want to use Tsinghua University's APT source for faster downloads in China? (y/N) " response_tuna
+        if [[ "$response_tuna" =~ ^[Yy]$ ]]; then
+            if [[ $(echo "$UBUNTU_VERSION >= 24.04" | bc) -eq 1 ]]; then
+                setup_deb822_sources
+            else
+                setup_traditional_sources
+            fi
+            sudo apt-get update
+        fi
+    fi
+fi
+export HTTP_PROXY="${PROXY_CONTENT:-$HTTP_PROXY}"
+export HTTPS_PROXY="${PROXY_CONTENT:-$HTTPS_PROXY}"
+
 if ! systemctl is-active --quiet docker; then
     echo "Docker service is not running."
     read -p "Do you want to install and start Docker? (y/N) " response
@@ -99,21 +141,6 @@ if ! systemctl is-active --quiet docker; then
         exit 1
     fi
 fi
-
-if [[ -z "$PROXY_ENABLED" ]]; then
-    read -p "Do you want to enable proxy settings (y/N)? " response
-    if [[ "$response" =~ ^[Yy]$ ]]; then
-        PROXY_ENABLED="true"
-        default_proxy=${HTTP_PROXY:-${http_proxy:-${HTTPS_PROXY:-${https_proxy}}}}
-        read -p "Enter proxy ip:port [$default_proxy]: " input_proxy
-        PROXY_CONTENT="${input_proxy:-$default_proxy}"
-    else
-        PROXY_ENABLED="false"
-    fi
-fi
-
-export HTTP_PROXY="${PROXY_CONTENT:-$HTTP_PROXY}"
-export HTTPS_PROXY="${PROXY_CONTENT:-$HTTPS_PROXY}"
 
 IP=$(hostname -I | awk '{print $1}')
 if [ "$PROXY_ENABLED" = "true" ]; then
@@ -141,12 +168,12 @@ if [ "$PROXY_ENABLED" = "true" ]; then
                 fi
                 sudo sed -i "/$PROXY=/d" /etc/systemd/system/docker.service.d/http-proxy.conf
                 echo "Environment=\"$PROXY=$NEW_PROXY\"" | sudo tee -a /etc/systemd/system/docker.service.d/http-proxy.conf > /dev/null
+                DOCKER_NEEDS_RESTART="true"
             fi
         fi
     done
 fi
 
-# Check if the proxy configuration needs to be created or updated for Docker client
 if [ "$PROXY_ENABLED" = "true" ]; then
     mkdir -p ~/.docker
     if [ ! -f ~/.docker/config.json ]; then
@@ -163,6 +190,26 @@ if [ "$PROXY_ENABLED" = "true" ]; then
     else
         sed -i 's/"httpProxy": ".*"/"httpProxy": "'$HTTP_PROXY'"/' ~/.docker/config.json
         sed -i 's/"httpsProxy": ".*"/"httpsProxy": "'$HTTPS_PROXY'"/' ~/.docker/config.json
+        DOCKER_NEEDS_RESTART="true"
+    fi
+fi
+
+if [ "$PROXY_ENABLED" = "false" ]; then
+    read -p "Do you want to use a domestic Docker pull mirror for faster downloads in China? (y/N) " response_docker
+    if [[ "$response_docker" =~ ^[Yy]$ ]]; then
+        echo "Setting up domestic Docker pull mirrors..."
+        sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+{
+    "registry-mirrors": [
+        "https://docker.1panel.dev",
+        "https://docker.fxxk.dedyn.io",
+        "https://docker.xn--6oq72ry9d5zx.cn",
+        "https://docker.m.daocloud.io",
+        "https://a.ussh.net",
+        "https://docker.zhai.cm"
+    ]
+}
+EOF
         DOCKER_NEEDS_RESTART="true"
     fi
 fi

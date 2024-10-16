@@ -1,5 +1,6 @@
 #!/bin/bash
 
+echo $http_proxy $HTTP_PROXY $HTTPS_PROXY $https_proxy
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y apt-transport-https ca-certificates curl gnupg lsb-release software-properties-common
 
