@@ -9,7 +9,7 @@ elif [[ $SHELL =~ .*bash.* ]]; then
 fi
 
 if [ "$PROXY_ENABLED" = "false" ]; then
-    GO_URL="https://studygolang.com/dl/golang/go$GO_VERSION.linux-amd64.tar.gz"
+    GO_URL="https://mirrors.ustc.edu.cn/golang/go$GO_VERSION.linux-amd64.tar.gz"
 else
     GO_URL="https://golang.google.cn/dl/go$GO_VERSION.linux-amd64.tar.gz"
 fi

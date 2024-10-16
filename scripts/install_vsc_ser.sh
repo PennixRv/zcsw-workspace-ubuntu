@@ -11,7 +11,6 @@ apt-get install -y openssh-server
 systemctl enable --now ssh
 
 while ! systemctl is-active --quiet ssh; do
-    echo "Waiting for SSH service to start..."
     sleep 1
 done
 
@@ -21,9 +20,7 @@ systemctl restart ssh
 VSCODE_SERVER_URL="https://vscode.download.prss.microsoft.com/dbazure/download/stable/${CODE_COMMITID}/vscode-server-linux-x64.tar.gz"
 mkdir -p "$HOME/.vscode-server/bin/$CODE_COMMITID"
 rm -rf "$HOME/.vscode-server/bin/$CODE_COMMITID/*"
-echo "Downloading VS Code Server..."
 curl -L "$VSCODE_SERVER_URL" -o "$HOME/.vscode-server/bin/$CODE_COMMITID/vscode-server-linux-x64.tar.gz"
 cd "$HOME/.vscode-server/bin/$CODE_COMMITID"
-echo "Installing VS Code Server..."
 tar -xvzf vscode-server-linux-x64.tar.gz --strip-components=1
 rm vscode-server-linux-x64.tar.gz
