@@ -16,13 +16,12 @@ fi
 
 wget $GO_URL
 
-tar -xvf go$GO_VERSION.linux-amd64.tar.gz
-sudo mv go /usr/local
+sudo tar -zxvf go$GO_VERSION.linux-amd64.tar.gz /usr/local
 rm go$GO_VERSION.linux-amd64.tar.gz
 
 if ! grep -q "export GOROOT=/usr/local/go" $SHELL_RC; then
     echo 'export GOROOT=/usr/local/go' >> $SHELL_RC
-    echo 'export GOPATH=$HOME/go' >> $SHELL_RC
+    echo 'export GOPATH=$HOME/.go' >> $SHELL_RC
     echo 'export PATH=$GOPATH/bin:$GOROOT/bin:$PATH' >> $SHELL_RC
     if [ "$PROXY_ENABLED" = "false" ]; then
         echo 'export GOPROXY=https://mirrors.aliyun.com/goproxy/,direct' >> $SHELL_RC
@@ -32,3 +31,4 @@ fi
 source $SHELL_RC
 
 go env -w GO111MODULE=on
+mkdir -p $HOME/.go/{bin,src,pkg}
