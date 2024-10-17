@@ -1,0 +1,10 @@
+Container already exists. Please select an action:
+1) Delete the container and recreate it from the image
+2) Delete both the container and the image, then rebuild from scratch
+3) Skip build process and restart the container
+4) Skip build process and do nothing
+Deleting both container and image...
+zcsw-workspace-ubuntu-container
+Untagged: zcsw-workspace-ubuntu:latest
+Deleted: sha256:08f678ce53354c6b16a5e6bb4fbd0cb79278e0e990610ae760dba5699473529a
+Rebuilding from scratch...

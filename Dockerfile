@@ -68,16 +68,16 @@ ARG WITH_ASTRONVIM
 ARG WITH_VSCODE
 ARG GH_TOKEN
 ARG CODE_COMMITID
-RUN if [ "$DISABLE_SNAP" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/disable_snap.sh; fi
+# RUN if [ "$DISABLE_SNAP" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/disable_snap.sh; fi
 RUN if [ "$WITH_ZSH" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_zsh.sh; fi
-RUN if [ "$WITH_RUST" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_rust.sh; fi
-RUN if [ "$WITH_LLVM" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_llvm.sh; fi
-RUN if [ "$WITH_GCC" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_gcc.sh; fi
-RUN if [ "$WITH_GO" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_go.sh; fi
-RUN if [ "$CONFIG_GITHUB" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/configure_github.sh; fi
-RUN if [ "$WITH_ASTRONVIM" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_astronvim.sh; fi
-RUN if [ "$WITH_VSCODE" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_vsc_ser.sh; fi
+# RUN if [ "$WITH_RUST" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_rust.sh; fi
+# RUN if [ "$WITH_LLVM" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_llvm.sh; fi
+# RUN if [ "$WITH_GCC" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_gcc.sh; fi
+# RUN if [ "$WITH_GO" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_go.sh; fi
+# RUN if [ "$CONFIG_GITHUB" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/configure_github.sh; fi
+# RUN if [ "$WITH_ASTRONVIM" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_astronvim.sh; fi
+# RUN if [ "$WITH_VSCODE" = "true" ]; then /bin/bash /usr/local/bin/pre_configured_scripts/install_vsc_ser.sh; fi
 
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sudo chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

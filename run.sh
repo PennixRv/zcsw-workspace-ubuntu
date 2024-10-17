@@ -13,6 +13,8 @@ GH_TOKEN=""
 CODE_COMMITID=""
 PROXY_ENABLED="false"
 PROXY_CONTENT=""
+IMAGE_NAME="zcsw-workspace-ubuntu"
+CONTAINER_NAME="zcsw-workspace-ubuntu-container"
 
 if [ "$#" -lt 1 ]; then
     echo "Usage: $0 --mount-path <path-to-mount> [options]"
@@ -244,6 +246,82 @@ WITH_VSCODE=$WITH_VSCODE
 GH_TOKEN=$GH_TOKEN
 CODE_COMMITID=$CODE_COMMITID
 PROXY_ENABLED=$PROXY_ENABLED
+IMAGE_NAME=$IMAGE_NAME
+CONTAINER_NAME=$CONTAINER_NAME
 EOF
 
-docker-compose up -d --build
+container_exists=$(docker ps -a | grep -w $CONTAINER_NAME | wc -l)
+image_exists=$(docker images $IMAGE_NAME | wc -l)
+
+if [ $container_exists -gt 0 ]; then
+    echo "Container already exists. Please select an action:"
+    echo "1) Delete the container and recreate it from the image"
+    echo "2) Delete both the container and the image, then rebuild from scratch"
+    echo "3) Skip build process and restart the container"
+    echo "4) Skip build process and do nothing"
+
+    read -p "Enter your choice (1-4): " option
+
+    case $option in
+        1)
+            echo "Deleting container..."
+            docker rm $CONTAINER_NAME
+            echo "Creating container..."
+            docker-compose up -d --build
+            ;;
+        2)
+            echo "Deleting both container and image..."
+            docker rm $CONTAINER_NAME
+            docker rmi $IMAGE_NAME
+            echo "Rebuilding from scratch..."
+            docker-compose up -d --build
+            ;;
+        3)
+            echo "Restarting the container..."
+            docker restart $CONTAINER_NAME
+            ;;
+        4)
+            echo "No action taken."
+            ;;
+        *)
+            echo "Invalid option, exiting."
+            exit 1
+            ;;
+    esac
+elif [ $image_exists -gt 1 ]; then
+    echo "Image exists but no container. Please select an action:"
+    echo "1) Delete the image and rebuild from scratch"
+    echo "2) Delete the image and all cached layers, then rebuild from scratch"
+    echo "3) Build the container using the existing image"
+
+    read -p "Enter your choice (1-3): " image_option
+
+    case $image_option in
+        1)
+            echo "Deleting image..."
+            docker rmi $IMAGE_NAME
+            echo "Rebuilding from scratch..."
+            docker-compose up -d --build
+            ;;
+        2)
+            echo "Deleting image and all cached layers..."
+            docker rmi $IMAGE_NAME
+            docker system prune -a
+            echo "Rebuilding from scratch..."
+            docker-compose up -d --build
+            ;;
+        3)
+            echo "Building container using existing image..."
+            docker-compose up -d
+            ;;
+        *)
+            echo "Invalid option, exiting."
+            exit 1
+            ;;
+    esac
+else
+    echo "No existing image or container. Proceeding with build..."
+    docker-compose up -d --build
+fi
+
+

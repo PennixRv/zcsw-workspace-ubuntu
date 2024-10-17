@@ -23,8 +23,8 @@ services:
         CODE_COMMITID: ${CODE_COMMITID}
         HTTP_PROXY: ${HTTP_PROXY}
         HTTPS_PROXY: ${HTTPS_PROXY}
-    image: zcsw-workspace-ubuntu
-    container_name: zcsw-workspace-ubuntu-container
+    image: ${IMAGE_NAME}
+    container_name: ${CONTAINER_NAME}
     ports:
       - "2222:22"
     network_mode: bridge
