@@ -23,6 +23,7 @@ services:
         CODE_COMMITID: ${CODE_COMMITID}
         HTTP_PROXY: ${HTTP_PROXY}
         HTTPS_PROXY: ${HTTPS_PROXY}
+        PROXY_ENABLED: ${PROXY_ENABLED}
     image: ${IMAGE_NAME}
     container_name: ${CONTAINER_NAME}
     ports:

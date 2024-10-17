@@ -267,14 +267,18 @@ if [ $container_exists -gt 0 ]; then
             echo "Deleting container..."
             docker rm $CONTAINER_NAME
             echo "Creating container..."
-            docker-compose up -d --build
+            docker-compose build
+            docker-compose up -d --progress tty
+            # docker-compose up -d --build
             ;;
         2)
             echo "Deleting both container and image..."
             docker rm $CONTAINER_NAME
             docker rmi $IMAGE_NAME
             echo "Rebuilding from scratch..."
-            docker-compose up -d --build
+            docker-compose build --progress tty
+            docker-compose up -d
+            # docker-compose up -d --build
             ;;
         3)
             echo "Restarting the container..."
@@ -301,18 +305,24 @@ elif [ $image_exists -gt 1 ]; then
             echo "Deleting image..."
             docker rmi $IMAGE_NAME
             echo "Rebuilding from scratch..."
-            docker-compose up -d --build
+            docker-compose build --progress tty
+            docker-compose up -d
+            # docker-compose up -d --build
             ;;
         2)
             echo "Deleting image and all cached layers..."
             docker rmi $IMAGE_NAME
             docker system prune -a
             echo "Rebuilding from scratch..."
-            docker-compose up -d --build
+            docker-compose build --progress tty
+            docker-compose up -d
+            # docker-compose up -d --build
             ;;
         3)
             echo "Building container using existing image..."
+            docker-compose build --progress tty
             docker-compose up -d
+            # docker-compose up -d --build
             ;;
         *)
             echo "Invalid option, exiting."
@@ -321,7 +331,9 @@ elif [ $image_exists -gt 1 ]; then
     esac
 else
     echo "No existing image or container. Proceeding with build..."
-    docker-compose up -d --build
+    docker-compose build
+    docker-compose up -d
+    # docker-compose up -d --build
 fi
 
 
