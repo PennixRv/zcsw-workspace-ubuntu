@@ -1,15 +1,12 @@
 #!/bin/bash
 
-# Ensure the script is not run as root
 if [ "$(id -u)" -eq 0 ]; then
     echo "This script should not be run as root. Please run it as your regular user."
     exit 1
 fi
 
-# Install necessary packages
 sudo apt install -y zsh git
 
-# Switch to zsh to run the remainder of the script
 zsh << 'EOF'
 
 # Set up Oh My Zsh installation script URL

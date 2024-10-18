@@ -1,0 +1,64 @@
+1 所有的这些参数都可以从命令行传入的, 并覆盖 env 文件中的默认值，脚本中不应包含任何这些参数的默认值
+
+2. USER_ID GROUP_ID USER_NAME GROUP_NAME HOME_DIR 这五个参数, 应该是绑定在一起的, 
+   这里所谓绑定的意思是, 需要一起设置: 如果通过命令行传入了这五个参数的任何一个, 则其他四个必须也传入, 否则报错退出; 
+   如果没有通过参数传入, 则转而去从 env 文件中读取, 同样的, env 文件中要么这 5 个参数都没有设置, 要么全部设置; 
+   如果 env 文件中也没有设置这 5 个参数, 则在脚本中直接读取当前宿主机上执行当前脚本的用户名 / 用户 ID / 组名 / 组 ID / 用户家目录, 并写回到 env 文件中, 方便下次使用
+
+3. 下面是对PROXY_ENABLED/HTTP_PROXY/HTTPS_PROXY这三个环境变量的配置
+流程开始: 命令行中是否传入了 PROXY_ENABLED?
+  -> yes, true: 命令行中是否传入了 HTTP_PROXY/HTTPS_PROXY?
+                  -> yes, Single: 使用传入的参数填补另一个没有传入的参数, 跳转到下面的 yes, Both                                      (A)
+                  -> yes, Both: 检查 IP 部分是否回环格式, 若是则使用真实 IP 替换该部分, 随后使用 NC 工具检查代理是否可达?                 (B)
+                                  -> yes: 写入到 env 文件中, 结束这三个参数的设置;
+                                  -> no: 报错退出, 提示用户检查
+                  -> no: 检查宿主机当前环境中是否包含这两个变量 HTTP_PROXY/HTTPS_PROXY?
+                           -> yes: 使用这两个变量, 跳转到标号 (B) 的逻辑
+                           -> no: 使能了代理, 却不传入代理地址, 且无法从环境读出, 报错退出, 提示用户检查
+  -> yes, false: 命令行中是否传入了 HTTP_PROXY/HTTPS_PROXY?
+                   -> yes, Single/Both: 禁用了代理却传入了代理地址, 报错退出, 提示用户检查;
+                   -> no: 认定用户不希望使用代理, 将 PROXY_ENABLED=false, HTTP_PROXY = 空, HTTPS_PROXY = 空 写入 env 文件中, 结束这三个参数的设置
+  -> no: 命令行中是否传入了 HTTP_PROXY/HTTPS_PROXY?
+           -> yes, Single: 认定用户意图设置网络代理, 使用 (A) 逻辑
+           -> yes, Both: 认定用户意图设置网络代理, 使用 (B) 逻辑
+           -> no: 认定用户不知道或者不关心是否从命令行中设置网络代理, 此时进入到 ENV 文件中的变量判断, 即流程 (C)
+
+流程 (C) ==> 条件: 命令行中全然不存在有关代理的参数设置 -> 结果: 校验 env 文件中关于代理的设置, env 文件中是否设置了 PROXY_ENABLED?
+  -> yes, true: env 文件中是否设置了 HTTP_PROXY/HTTPS_PROXY?
+                  -> yes, Single: 使用已经设置的参数设置另一个未设置的参数, 跳转到下面的 yes, Both                      (D)
+                  -> yes, Both: 检查 IP 部分是否回环格式, 若是则使用真实 IP 替换该部分, 随后使用 NC 工具检查代理是否可达?  (E)
+                                  -> yes: 结束三个参数的设置;
+                                  -> No: 报错退出, 提示用户检查
+                  -> no: 检查宿主机当前环境中是否包含这两个变量 HTTP_PROXY/HTTPS_PROXY?
+                         -> yes: 使用这两个变量, 写入 ENV 文件, 跳转到标号 (E) 的逻辑
+                         -> no: 使能了代理, 却不在 env 文件中代理地址, 且无法从环境读出, 报错退出, 提示用户检查
+  -> yes, false: env 文件中是否设置了 HTTP_PROXY/HTTPS_PROXY?
+                 -> yes: yes, Single/Both: 禁用了代理却在文件中设置了代理地址, 报错退出, 提示用户检查;
+                 -> no: 认定用户不希望使用代理, 将 PROXY_ENABLED=false, HTTP_PROXY = 空, HTTPS_PROXY = 空 写入 env 文件中, 结束这三个参数的设置
+  -> No: env 文件中是否设置了 HTTP_PROXY/HTTPS_PROXY?
+           -> yes, Single: 认定用户意图设置网络代理, 使用 (D) 逻辑
+           -> yes, Both: 认定用户意图设置网络代理, 使用 (E) 逻辑
+           -> no: 此时, 命令行和 env 文件中均未设置代理, 或者 env 文件中 PROXY_ENABLED = 空 HTTP_PROXY = 空, HTTPS_PROXY = 空, 最后询问用户是否需要设置网络代理? 
+                  -> yes: 认定用户是不知道脚本可以设置网络代理的, 此时希望设置代理, 接下来提示输入网络代理的 IP:PORT, 其默认值为宿主设备当前可能存在的 HTTP_PROXY, 按回车使用;
+                          用户输入之后, 按照设置的内容写入 env 文件, 结束这三个参数的设置;
+                  -> No: 认定用户知道命令行和 env 可以设置网络代理, 却不希望设置, 此时将 PROXY_ENABLED=false, HTTP_PROXY = 空, HTTPS_PROXY = 空 写入 env 文件中, 结束这三个参数的设置
+  
+4. MOUNT_PATH这个变量依然经历三步设置：
+    命令行是否传入？
+      -> yes: 使用传入的地址，注意传入的地址可能是相对地址，需要转换成绝对地址，写入到env文件中
+      -> no: 检查env文件中是否已经有了此变量的内容？
+               -> yes: 检查路径是否存在，若存在则结束流程，若不存在则报错退出；
+               -> no: 使用当前路径作为传入地址，解析之后写入到env中，结束流程；
+               
+5. WITH_GCC WITH_LLVM DISABLE_SNAP WITH_ZSH CONFIG_GITHUB WITH_RUST WITH_GO WITH_ASTRONVIM WITH_VSCODE IMAGE_NAME CONTAINER_NAME 这些选项类似第4步
+    命令行是否传入？
+      -> yes: 使用传入的值，写入到env文件中；
+      -> no: 检查env文件中是否已经有了此变量的内容？
+               -> yes: 结束流程
+               -> no: 使用默认值填充env并结束流程:
+                      WITH_GCC=false WITH_LLVM=false DISABLE_SNAP=true WITH_ZSH=false \
+                      CONFIG_GITHUB=false WITH_RUST WITH_GO=false WITH_ASTRONVIM=false \
+                      WITH_VSCODE=false IMAGE_NAME=zcsw-workspace-ubuntu CONTAINER_NAME=zcsw-workspace-ubuntu-container
+
+6. 变量 GH_TOKEN 可以通过命令行或者直接写在env文件中，依然是命令行优先于env文件，若命令行传入则覆盖env文件；随后，需要检查CONFIG_GITHUB是否为true，若为false，则应该清空env文件中的GH_TOKEN
+7. 变量 CODE_COMMITID 可以通过命令行或者直接写在env文件中，依然是命令行优先于env文件，若命令行传入则覆盖env文件；随后，需要检查WITH_VSCODE是否为true，若为false，则应该清空env文件中的CODE_COMMITID
