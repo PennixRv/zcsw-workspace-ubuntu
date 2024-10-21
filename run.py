@@ -1,146 +1,244 @@
+import argparse
 import os
 import sys
-import argparse
 from pathlib import Path
+from dotenv import load_dotenv, dotenv_values, set_key
+
 import subprocess
-import pwd
-import grp
+import sys
+import socket
 
-def load_env():
-    """
-    从 .env 文件加载环境变量。
-    返回一个字典，包含所有环境变量的键值对。
-    """
-    env_vars = {}
-    if Path('.env').exists():
-        with open('.env', 'r') as file:
-            for line in file:
-                key, value = line.strip().split('=', 1)
-                env_vars[key] = value
-    return env_vars
+def is_proxy_reachable(proxy):
+    # 解析代理地址和端口
+    if '://' in proxy:
+        proxy = proxy.split('://')[1]  # 去掉协议头
+    ip, port = proxy.split(':')
 
-def save_env(env_vars):
-    """
-    将环境变量保存到 .env 文件。
-    参数 env_vars 是包含环境变量键值对的字典。
-    """
-    with open('.env', 'w') as file:
-        for key, value in env_vars.items():
-            file.write(f'{key}={value}\n')
+    # 检查是否为回环地址
+    if ip in ['localhost', '127.0.0.1']:
+        # 获取本机 IP 地址
+        ip = socket.gethostbyname(socket.gethostname())
 
-def parse_arguments():
-    """
-    解析命令行参数并返回一个包含所有参数的 argparse.Namespace 对象。
-    使用 argparse 模块定义了所有预期输入的命令行参数。
-    """
-    parser = argparse.ArgumentParser(description="Environment Configuration Script")
-    # 定义所有可能的命令行参数
-    parser.add_argument('--user_id', type=int, help='User ID')
-    parser.add_argument('--group_id', type=int, help='Group ID')
-    parser.add_argument('--user_name', help='User name')
-    parser.add_argument('--group_name', help='Group name')
-    parser.add_argument('--home_dir', help='Home directory path')
-    parser.add_argument('--mount_path', help='Mount path')
-    parser.add_argument('--image_name', help='Docker image name')
-    parser.add_argument('--container_name', help='Docker container name')
-    parser.add_argument('--proxy_enabled', help='Proxy enabled (true/false)', choices=['true', 'false'])
-    parser.add_argument('--http_proxy', help='HTTP proxy URL')
-    parser.add_argument('--https_proxy', help='HTTPS proxy URL')
-    parser.add_argument('--with_gcc', help='Include GCC', choices=['true', 'false'])
-    parser.add_argument('--with_llvm', help='Include LLVM', choices=['true', 'false'])
-    parser.add_argument('--disable_snap', help='Disable Snap', choices=['true', 'false'])
-    parser.add_argument('--with_zsh', help='Install ZSH', choices=['true', 'false'])
-    parser.add_argument('--config_github', help='Configure GitHub', choices=['true', 'false'])
-    parser.add_argument('--with_rust', help='Include Rust', choices=['true', 'false'])
-    parser.add_argument('--with_go', help='Include Go', choices=['true', 'false'])
-    parser.add_argument('--with_astronvim', help='Install AstronVim', choices=['true', 'false'])
-    parser.add_argument('--with_vscode', help='Install Visual Studio Code', choices=['true', 'false'])
-    parser.add_argument('--gh_token', help='GitHub token')
-    parser.add_argument('--code_commitid', help='Code commit ID')
-    return parser.parse_args()
-
-def validate_user_params(args, env_vars):
-    user_params = ['user_id', 'group_id', 'user_name', 'group_name', 'home_dir']
-    args_values = {param: getattr(args, param) for param in user_params}
-    
-    if any(args_values.values()) and not all(args_values.values()):
-        print("Error: All user parameters must be set together if any are set.")
-        sys.exit(1)
-
-    if not any(args_values.values()):  # No user parameters are set via command line
-        env_user_values = {param: env_vars.get(param.upper()) for param in user_params}
-        if any(env_user_values.values()) and not all(env_user_values.values()):
-            print("Error: Environment variables must either be all set or none at all.")
-            sys.exit(1)
-        elif not any(env_user_values.values()):  # No user parameters in env, fetch from system
-            current_user = pwd.getpwuid(os.getuid())
-            current_group = grp.getgrgid(current_user.pw_gid)
-            user_info = {
-                'user_id': str(current_user.pw_uid),
-                'group_id': str(current_group.gr_gid),
-                'user_name': current_user.pw_name,
-                'group_name': current_group.gr_name,
-                'home_dir': current_user.pw_dir
-            }
-            env_vars.update({key.upper(): value for key, value in user_info.items()})
+    # 使用 nc (netcat) 工具检查 IP 和端口的可达性
+    try:
+        # 使用 subprocess.run 执行 nc 命令
+        result = subprocess.run(['nc', '-zv', ip, port], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+        if result.returncode == 0:
+            print(f"Proxy {ip}:{port} is reachable.")
+            return f"{ip}:{port}"  # 返回可达的代理地址
         else:
-            args_values.update(env_user_values)
-    return args_values
+            sys.exit(f"Error: Proxy {ip}:{port} is not reachable.")
+    except subprocess.TimeoutExpired:
+        sys.exit(f"Error: Timeout when trying to reach the proxy {ip}:{port}.")
 
-def handle_proxies(args, env_vars):
-    """
-    处理代理设置逻辑，包括验证和更新env_vars。
-    确保代理设置正确并且代理服务器可达。
-    """
-    if args.proxy_enabled:
+
+def update_env_file(key, value):
+    with open('.env', 'a') as f:
+        f.write(f"{key}={value}\n")
+
+def get_system_user_group_info():
+    # 获取系统信息
+    user_info = {
+        'USER_ID': os.getuid(),
+        'GROUP_ID': os.getgid(),
+        'USER_NAME': os.getenv('USER', ''),
+        'GROUP_NAME': os.getenv('GROUP', ''),
+        'HOME_DIR': os.getenv('HOME', '')
+    }
+    
+    # 更新.env文件
+    for key, value in user_info.items():
+        # 将每个键值对更新到.env文件，转换所有值为字符串确保正确处理
+        set_key('.env', key, str(value))
+    
+    return user_info
+
+def validate_user_group_args(args, env_data):
+    user_args = ['user_id', 'group_id', 'user_name', 'group_name', 'home_dir']
+    provided_args = [getattr(args, arg) for arg in user_args]
+    
+    if any(provided_args) and not all(provided_args):
+        sys.exit("Error: If any of USER_ID, GROUP_ID, USER_NAME, GROUP_NAME, HOME_DIR is specified, all must be specified.")
+    
+    # 检查是否所有命令行参数都被提供
+    if all(provided_args):
+        # 更新.env文件
+        for arg, value in zip(user_args, provided_args):
+            set_key('.env', arg.upper(), str(value))
+    else:
+        # 检查.env文件
+        env_values = [env_data.get(arg.upper()) for arg in user_args]
+        if all(env_values):
+            # 从.env文件加载
+            for arg, value in zip(user_args, env_values):
+                setattr(args, arg, value)
+        elif any(env_values):
+            sys.exit("Error: Not all user and group parameters are set in the .env file.")
+        else:
+            # 从系统获取并更新.env
+            system_values = get_system_user_group_info()
+            for arg in user_args:
+                setattr(args, arg, str(system_values[arg.upper()]))
+
+
+def validate_proxy_args(args, env_data):
+    if args.proxy_enabled is not None:
         if args.proxy_enabled.lower() == 'true':
-            if not args.http_proxy or not args.https_proxy:
-                print("Both HTTP_PROXY and HTTPS_PROXY must be set if PROXY_ENABLED is true.")
-                sys.exit(1)
-            if not check_proxy_reachability(args.http_proxy):
-                print("Error: Proxy not reachable.")
-                sys.exit(1)
+            if args.http_proxy or args.https_proxy:
+                if not args.http_proxy:
+                    args.http_proxy = args.https_proxy
+                if not args.https_proxy:
+                    args.https_proxy = args.http_proxy
+                http_proxy = is_proxy_reachable(args.http_proxy)
+                https_proxy = is_proxy_reachable(args.https_proxy)
+                set_key('.env', 'HTTP_PROXY', http_proxy)
+                set_key('.env', 'HTTPS_PROXY', https_proxy)
+            else:
+                http_proxy = os.getenv('HTTP_PROXY', '')
+                https_proxy = os.getenv('HTTPS_PROXY', '')
+                if http_proxy or https_proxy:
+                    if not http_proxy:
+                        http_proxy = https_proxy
+                    if not https_proxy:
+                        https_proxy = http_proxy
+                    http_proxy = is_proxy_reachable(http_proxy)
+                    https_proxy = is_proxy_reachable(https_proxy)
+                    set_key('.env', 'HTTP_PROXY', http_proxy)
+                    set_key('.env', 'HTTPS_PROXY', https_proxy)
+                else:
+                    sys.exit("Error: PROXY_ENABLED is true but no proxy addresses were provided or found.")
+            set_key('.env', 'PROXY_ENABLED', 'true')
         elif args.proxy_enabled.lower() == 'false':
             if args.http_proxy or args.https_proxy:
-                print("Error: Proxies should not be set when PROXY_ENABLED is false.")
-                sys.exit(1)
-
-        env_vars['PROXY_ENABLED'] = args.proxy_enabled
-        env_vars['HTTP_PROXY'] = args.http_proxy if args.http_proxy else ''
-        env_vars['HTTPS_PROXY'] = args.https_proxy if args.https_proxy else ''
-
-def check_proxy_reachability(http_proxy):
-    """
-    检查HTTP代理是否可达。
-    使用nc工具进行网络连接测试。
-    """
-    if not http_proxy:
-        return False
-    parts = http_proxy.split('//')[1].split(':')
-    ip, port = parts[0], parts[1]
-    try:
-        subprocess.check_call(['nc', '-z', ip, port], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
-    except subprocess.CalledProcessError:
-        return False
-
-def update_environment_variables(args, env_vars):
-    """
-    更新环境变量基于命令行输入。
-    从命令行读取的参数直接更新到环境变量中，以便将来使用。
-    """
-    for arg, value in vars(args).items():
-        if value is not None:
-            env_vars[arg.upper()] = str(value)
+                sys.exit("Error: PROXY_ENABLED is false but proxy addresses were provided.")
+            set_key('.env', 'HTTP_PROXY', '')
+            set_key('.env', 'HTTPS_PROXY', '')
+            set_key('.env', 'PROXY_ENABLED', 'false')
+    else:
+        if args.http_proxy or args.https_proxy:
+            if not args.http_proxy:
+                args.http_proxy = args.https_proxy
+            if not args.https_proxy:
+                args.https_proxy = args.http_proxy
+            http_proxy = is_proxy_reachable(args.http_proxy)
+            https_proxy = is_proxy_reachable(args.https_proxy)
+            set_key('.env', 'HTTP_PROXY', http_proxy)
+            set_key('.env', 'HTTPS_PROXY', https_proxy)
+        else:
+            proxy_enabled = env_data.get('PROXY_ENABLED', '').lower()
+            if proxy_enabled is not None:
+                if proxy_enabled == 'true':
+                    http_proxy = env_data.get('HTTP_PROXY', '')
+                    https_proxy = env_data.get('HTTPS_PROXY', '')
+                    if http_proxy or https_proxy:
+                        if not http_proxy:
+                            http_proxy = https_proxy
+                        if not https_proxy:
+                            https_proxy = http_proxy
+                        http_proxy = is_proxy_reachable(http_proxy)
+                        https_proxy = is_proxy_reachable(https_proxy)
+                        set_key('.env', 'HTTP_PROXY', http_proxy)
+                        set_key('.env', 'HTTPS_PROXY', https_proxy)
+                    else:
+                        http_proxy = os.getenv('HTTP_PROXY', '')
+                        https_proxy = os.getenv('HTTPS_PROXY', '')
+                        if http_proxy or https_proxy:
+                            if not http_proxy:
+                                http_proxy = https_proxy
+                            if not https_proxy:
+                                https_proxy = http_proxy
+                            http_proxy = is_proxy_reachable(http_proxy)
+                            https_proxy = is_proxy_reachable(https_proxy)
+                            set_key('.env', 'HTTP_PROXY', http_proxy)
+                            set_key('.env', 'HTTPS_PROXY', https_proxy)
+                        else:   
+                            sys.exit("Error: PROXY_ENABLED is true but no proxy addresses were provided or found.")
+                elif proxy_enabled == 'false':
+                    http_proxy = env_data.get('HTTP_PROXY', '')
+                    https_proxy = env_data.get('HTTPS_PROXY', '')
+                    if http_proxy or https_proxy:
+                        sys.exit("Error: PROXY_ENABLED is false but proxy addresses were provided.")
+                    else:
+                        set_key('.env', 'HTTP_PROXY', '')
+                        set_key('.env', 'HTTPS_PROXY', '')
+                        set_key('.env', 'PROXY_ENABLED', 'false')
+            else:
+                http_proxy = env_data.get('HTTP_PROXY', '')
+                https_proxy = env_data.get('HTTPS_PROXY', '')
+                if http_proxy or https_proxy:
+                    if not http_proxy:
+                        http_proxy = https_proxy
+                    if not https_proxy:
+                        https_proxy = http_proxy
+                    http_proxy = is_proxy_reachable(http_proxy)
+                    https_proxy = is_proxy_reachable(https_proxy)
+                    set_key('.env', 'HTTP_PROXY', http_proxy)
+                    set_key('.env', 'HTTPS_PROXY', https_proxy)
+                else:
+                    existing_http_proxy = os.getenv('HTTP_PROXY', '')
+                    existing_https_proxy = os.getenv('HTTPS_PROXY', existing_http_proxy)
+                    print("No proxy settings were found. Do you want to set up a proxy now? (yes/no)")
+                    response = input().strip().lower()
+                    if response == 'yes':
+                        proxy_input = input(f"Please enter the proxy address (IP:PORT), or leave blank to use the current setting ({existing_http_proxy or existing_https_proxy}): ").strip()
+                        if not proxy_input:
+                            if existing_http_proxy or existing_https_proxy:
+                                if not existing_http_proxy:
+                                    existing_http_proxy = existing_https_proxy
+                                if not existing_https_proxy:
+                                    existing_https_proxy = existing_http_proxy                                
+                                http_proxy = https_proxy =existing_http_proxy
+                            else:
+                                print("No proxy address entered and no existing proxy settings found. No proxy will be set.")
+                                set_key('.env', 'PROXY_ENABLED', 'false')
+                                set_key('.env', 'HTTP_PROXY', '')
+                                set_key('.env', 'HTTPS_PROXY', '')
+                                return
+                        else:
+                            http_proxy = https_proxy = proxy_input
+                        http_proxy = is_proxy_reachable(http_proxy)
+                        https_proxy = is_proxy_reachable(https_proxy)
+                        set_key('.env', 'HTTP_PROXY', http_proxy)
+                        set_key('.env', 'HTTPS_PROXY', https_proxy)
+                        set_key('.env', 'PROXY_ENABLED', 'true')
 
 def main():
-    args = parse_arguments()
-    env_vars = load_env()
-    validate_user_params(args, env_vars)
-    handle_proxies(args, env_vars)
-    update_environment_variables(args, env_vars)
-    save_env(env_vars)
-    print("Environment configuration updated successfully.")
+    load_dotenv('.env')
+    env_data = dotenv_values('.env')
+    parser = argparse.ArgumentParser(description="Run script for setting up a containerized Ubuntu workspace.")
+
+    parser.add_argument('--mount-path', type=str, help="Path to mount inside the container.")
+    parser.add_argument('--with-gcc', choices=['true', 'false'], help="Whether to include GCC.")
+    parser.add_argument('--with-llvm', choices=['true', 'false'], help="Whether to include LLVM.")
+    parser.add_argument('--disable-snap', choices=['true', 'false'], help="Whether to disable Snap installations.")
+    parser.add_argument('--with-zsh', choices=['true', 'false'], help="Whether to include Zsh.")
+    parser.add_argument('--config-github', choices=['true', 'false'], help="Whether to configure GitHub integration.")
+    parser.add_argument('--with-rust', choices=['true', 'false'], help="Whether to include Rust.")
+    parser.add_argument('--with-go', choices=['true', 'false'], help="Whether to include Go.")
+    parser.add_argument('--with-astronvim', choices=['true', 'false'], help="Whether to include AstroNvim.")
+    parser.add_argument('--with-vscode', choices=['true', 'false'], help="Whether to include VSCode.")
+    parser.add_argument('--image-name', type=str, help="Docker image name.")
+    parser.add_argument('--container-name', type=str, help="Docker container name.")
+    parser.add_argument('--user-id', type=int, help="User ID for the container user.")
+    parser.add_argument('--group-id', type=int, help="Group ID for the container user.")
+    parser.add_argument('--user-name', type=str, help="User name for the container user.")
+    parser.add_argument('--group-name', type=str, help="Group name for the container user.")
+    parser.add_argument('--home-dir', type=str, help="Home directory for the container user.")
+    parser.add_argument('--proxy-enabled', choices=['true', 'false'], help="Whether network proxy is enabled.")
+    parser.add_argument('--http-proxy', type=str, help="HTTP proxy URL.")
+    parser.add_argument('--https-proxy', type=str, help="HTTPS proxy URL.")
+    parser.add_argument('--gh-token', type=str, help="GitHub token for configurations.")
+    parser.add_argument('--code-commitid', type=str, help="VSCode commit ID required for installation.")
+
+    args = parser.parse_args()
+
+    # Validate and handle user and group arguments
+    validate_user_group_args(args, env_data)
+
+    # Validate and handle proxy arguments
+    validate_proxy_args(args, env_data)
+
+    # Additional processing and .env update logic goes here
 
 if __name__ == "__main__":
     main()
