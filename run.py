@@ -80,7 +80,6 @@ def validate_user_group_args(args, env_data):
             for arg in user_args:
                 setattr(args, arg, str(system_values[arg.upper()]))
 
-
 def validate_proxy_args(args, env_data):
     if args.proxy_enabled is not None:
         if args.proxy_enabled.lower() == 'true':
